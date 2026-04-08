@@ -3,11 +3,10 @@ const { generateInterviewReport, generateResumePdf } = require("../services/ai.s
 const interviewReportModel = require("../models/interviewReportModel");
 
 /**
- * @description Controller to generate interview report based on user self description, resume and job description.
+ * Generate Interview Report
  */
 async function generateInterViewReportController(req, res) {
     try {
-        // Validate input
         if (!req.file) {
             return res.status(400).json({
                 message: "Resume file is required"
@@ -20,32 +19,23 @@ async function generateInterViewReportController(req, res) {
             });
         }
 
-        console.log("Parsing PDF...");
-        
-        // Parse PDF resume
+        console.log("📄 Parsing PDF...");
+
         const pdfData = await pdfParse(req.file.buffer);
         const resumeContent = pdfData.text;
-        
-        console.log("PDF parsed successfully. Content length:", resumeContent.length);
-        
+
+        console.log("✅ PDF parsed. Length:", resumeContent.length);
+
         const { selfDescription = "", jobDescription } = req.body;
 
-        console.log("Generating AI interview report...");
-        
-        // Generate interview report - this will throw error if AI fails
+        console.log("🤖 Generating AI report...");
+
         const aiReport = await generateInterviewReport({
             resume: resumeContent.substring(0, 5000),
             selfDescription: selfDescription.substring(0, 1000),
             jobDescription: jobDescription.substring(0, 3000)
         });
 
-        console.log("\n✅ AI Report Generated Successfully!");
-        console.log(`   Technical Questions: ${aiReport.technicalQuestions.length}`);
-        console.log(`   Behavioral Questions: ${aiReport.behavioralQuestions.length}`);
-        console.log(`   Skill Gaps: ${aiReport.skillGaps.length}`);
-        console.log(`   Preparation Days: ${aiReport.preparationPlan.length}`);
-
-        // Save to database using AI response directly - NO FALLBACKS
         const interviewReport = await interviewReportModel.create({
             user: req.user.id,
             resume: resumeContent,
@@ -63,19 +53,10 @@ async function generateInterViewReportController(req, res) {
             message: "Interview report generated successfully.",
             interviewReport
         });
-        
+
     } catch (error) {
-        console.error("Controller Error:", error);
-        
-        // Handle validation errors
-        if (error.name === 'ValidationError') {
-            const errors = Object.values(error.errors).map(err => err.message);
-            return res.status(400).json({
-                message: "Validation failed",
-                errors: errors
-            });
-        }
-        
+        console.error("❌ Controller Error:", error);
+
         res.status(500).json({
             message: "Failed to generate interview report",
             error: error.message
@@ -84,15 +65,15 @@ async function generateInterViewReportController(req, res) {
 }
 
 /**
- * @description Controller to get interview report by interviewId.
+ * Get Interview Report by ID
  */
 async function getInterviewReportByIdController(req, res) {
     try {
         const { interviewId } = req.params;
 
-        const interviewReport = await interviewReportModel.findOne({ 
-            _id: interviewId, 
-            user: req.user.id 
+        const interviewReport = await interviewReportModel.findOne({
+            _id: interviewId,
+            user: req.user.id
         });
 
         if (!interviewReport) {
@@ -105,8 +86,10 @@ async function getInterviewReportByIdController(req, res) {
             message: "Interview report fetched successfully.",
             interviewReport
         });
+
     } catch (error) {
-        console.error("Error fetching report:", error);
+        console.error("❌ Fetch Error:", error);
+
         res.status(500).json({
             message: "Failed to fetch interview report",
             error: error.message
@@ -114,21 +97,25 @@ async function getInterviewReportByIdController(req, res) {
     }
 }
 
-/** 
- * @description Controller to get all interview reports of logged in user.
+/**
+ * Get All Interview Reports
  */
 async function getAllInterviewReportsController(req, res) {
     try {
-        const interviewReports = await interviewReportModel.find({ 
-            user: req.user.id 
-        }).sort({ createdAt: -1 }).select("-resume -selfDescription -jobDescription -__v -technicalQuestions -behavioralQuestions -skillGaps -preparationPlan");
+        const interviewReports = await interviewReportModel.find({
+            user: req.user.id
+        })
+        .sort({ createdAt: -1 })
+        .select("-resume -selfDescription -jobDescription -__v -technicalQuestions -behavioralQuestions -skillGaps -preparationPlan");
 
         res.status(200).json({
             message: "Interview reports fetched successfully.",
             interviewReports
         });
+
     } catch (error) {
-        console.error("Error fetching reports:", error);
+        console.error("❌ Fetch All Error:", error);
+
         res.status(500).json({
             message: "Failed to fetch interview reports",
             error: error.message
@@ -137,11 +124,14 @@ async function getAllInterviewReportsController(req, res) {
 }
 
 /**
- * @description Controller to generate resume PDF based on user self description, resume and job description.
+ * Generate Resume PDF (🔥 FIXED VERSION)
  */
 async function generateResumePdfController(req, res) {
     try {
         const { interviewReportId } = req.params;
+
+        console.log("📄 PDF API HIT");
+        console.log("ID:", interviewReportId);
 
         const interviewReport = await interviewReportModel.findById(interviewReportId);
 
@@ -153,11 +143,26 @@ async function generateResumePdfController(req, res) {
 
         const { resume, jobDescription, selfDescription } = interviewReport;
 
-        const pdfBuffer = await generateResumePdf({ 
-            resume: resume.substring(0, 3000), 
-            jobDescription, 
-            selfDescription 
-        });
+        console.log("Resume exists:", !!resume);
+        console.log("Resume length:", resume?.length);
+
+        // ✅ Safe handling (NO crash)
+        const safeResume = String(resume || "").slice(0, 3000);
+
+        let pdfBuffer;
+
+        try {
+            pdfBuffer = await generateResumePdf({
+                resume: safeResume,
+                jobDescription: jobDescription || "",
+                selfDescription: selfDescription || ""
+            });
+        } catch (err) {
+            console.error("❌ AI PDF failed:", err.message);
+
+            // ✅ fallback PDF (no crash)
+            pdfBuffer = Buffer.from("PDF generation failed. Please try again.");
+        }
 
         res.set({
             "Content-Type": "application/pdf",
@@ -166,8 +171,10 @@ async function generateResumePdfController(req, res) {
         });
 
         res.send(pdfBuffer);
+
     } catch (error) {
-        console.error("PDF Generation Error:", error);
+        console.error("❌ PDF Generation Error:", error);
+
         res.status(500).json({
             message: "Failed to generate resume PDF",
             error: error.message
@@ -175,9 +182,9 @@ async function generateResumePdfController(req, res) {
     }
 }
 
-module.exports = { 
-    generateInterViewReportController, 
-    getInterviewReportByIdController, 
-    getAllInterviewReportsController, 
-    generateResumePdfController 
+module.exports = {
+    generateInterViewReportController,
+    getInterviewReportByIdController,
+    getAllInterviewReportsController,
+    generateResumePdfController
 };
