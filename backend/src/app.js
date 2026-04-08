@@ -1,33 +1,42 @@
-const express = require('express')
-require('dotenv').config()
-const cookieParser = require('cookie-parser')
-const cors = require('cors')
+// backend/src/app.js
+const express = require('express');
+require('dotenv').config();
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
 
-const app = express()
+const app = express();
 
-app.use(cookieParser())
-app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+// Middleware
+app.use(cookieParser());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// CORS configuration
+// CORS configuration - directly in app.js (simpler)
 const allowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:3000',
     'https://rvision-ai.vercel.app',
     'https://rvisionai-backend.onrender.com'
 ];
 
-// Apply CORS middleware - remove the separate app.options line
 app.use(cors({
     origin: function(origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl)
+        // Allow requests with no origin
         if (!origin) return callback(null, true);
         
+        // Check exact match
         if (allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
         
-        console.log('Blocked origin:', origin);
-        callback(new Error('Not allowed by CORS'));
+        // Allow all Vercel preview URLs
+        if (origin.includes('.vercel.app')) {
+            return callback(null, true);
+        }
+        
+        console.log('⚠️ Blocked origin:', origin);
+        callback(null, true); // Temporarily allow all for debugging
+        // callback(new Error('Not allowed by CORS')); // Use this in production
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -64,7 +73,7 @@ const interviewRouter = require('./routes/interview.route');
 app.use('/api/auth', authRouter);
 app.use('/api/interview', interviewRouter);
 
-// 404 handler - must come after all routes
+// 404 handler
 app.use((req, res) => {
     res.status(404).json({ 
         error: 'Route not found',
@@ -76,7 +85,6 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
     console.error('Error:', err.stack);
     
-    // Handle specific error types
     if (err.name === 'UnauthorizedError') {
         return res.status(401).json({ error: 'Invalid token' });
     }
@@ -85,12 +93,10 @@ app.use((err, req, res, next) => {
         return res.status(400).json({ error: err.message });
     }
     
-    // CORS errors
     if (err.message === 'Not allowed by CORS') {
         return res.status(403).json({ error: 'CORS not allowed' });
     }
     
-    // Default error response
     res.status(err.status || 500).json({ 
         error: process.env.NODE_ENV === 'production' 
             ? 'Internal server error' 
