@@ -3,7 +3,7 @@ import  api from '../api/api'
 
 export const login = async (email, password) => {
     try {
-        const response = await api.post('/login', { email, password });
+        const response = await api.post('/auth/login', { email, password });
         
         console.log('=== RAW LOGIN RESPONSE ===');
         console.log('Full response:', response);
@@ -45,7 +45,7 @@ export const login = async (email, password) => {
 
 export const register = async (username, email, password) => {
     try {
-        const response = await api.post('/register', { username, email, password });
+        const response = await api.post('/auth/register', { username, email, password });
         console.log('Register response:', response.data);
         
         const { token, message, user } = response.data;
@@ -75,7 +75,7 @@ export const register = async (username, email, password) => {
 
 export const logout = async () => {
     try {
-        await api.post('/logout');
+        await api.post('/auth/logout');
         localStorage.removeItem('token');
         console.log('Token removed from localStorage');
     } catch (error) {
@@ -91,7 +91,7 @@ export const getme = async () => {
         const token = localStorage.getItem('token');
         console.log('Token in getme:', token ? 'exists' : 'missing');
         
-        const response = await api.get('/get-me');
+        const response = await api.get('/auth/get-me');
         console.log('GetMe response status:', response.status);
         console.log('GetMe response data:', response.data);
         
