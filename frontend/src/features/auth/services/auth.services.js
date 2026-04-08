@@ -1,122 +1,136 @@
-// services/auth.services.js
-import  api from '../api/api'
+import api from './axios';
 
 export const login = async (email, password) => {
     try {
+        console.log('🔐 Attempting login for:', email);
+        
         const response = await api.post('/auth/login', { email, password });
         
-        console.log('=== RAW LOGIN RESPONSE ===');
-        console.log('Full response:', response);
-        console.log('Response data:', response.data);
-        console.log('Response data keys:', Object.keys(response.data));
-        console.log('User object:', response.data.user);
-        console.log('===========================');
+        console.log('✅ Login response:', response.data);
         
-        // ✅ Extract from response.data.user (not directly from response.data)
-        const { token, message, user } = response.data;
+        const { token, user } = response.data;
         
-        // Validate user data
-        if (!user || !user.id) {
-            console.error('Invalid user data:', user);
-            throw new Error('No user data received');
+        if (!token) {
+            console.error('❌ No token in login response');
+            throw new Error('No token received from server');
         }
         
-        // Save token
-        if (token) {
-            localStorage.setItem('token', token);
-            console.log('Token saved to localStorage');
+        if (!user) {
+            console.error('❌ No user data in login response');
+            throw new Error('No user data received from server');
         }
         
-        return {
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.email
-            },
-            token: token,
-            message: message
-        };
+        // Save token to localStorage
+        localStorage.setItem('token', token);
+        console.log('✅ Token saved to localStorage');
+        
+        // Save user to localStorage (optional)
+        localStorage.setItem('user', JSON.stringify(user));
+        
+        return { user, token };
         
     } catch (error) {
-        console.error('Login error:', error);
+        console.error('❌ Login error:', error.response?.data || error.message);
         throw error;
     }
 };
 
 export const register = async (username, email, password) => {
     try {
+        console.log('📝 Attempting registration for:', email);
+        
         const response = await api.post('/auth/register', { username, email, password });
-        console.log('Register response:', response.data);
         
-        const { token, message, user } = response.data;
+        console.log('✅ Register response:', response.data);
         
-        if (!user || !user.id) {
-            throw new Error('No user data received');
-        }
+        const { token, user } = response.data;
         
         if (token) {
             localStorage.setItem('token', token);
+            console.log('✅ Token saved to localStorage');
         }
         
-        return {
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.email
-            },
-            token: token,
-            message: message
-        };
+        if (user) {
+            localStorage.setItem('user', JSON.stringify(user));
+        }
+        
+        return { user, token };
+        
     } catch (error) {
-        console.error('Register error:', error);
+        console.error('❌ Register error:', error.response?.data || error.message);
         throw error;
     }
 };
 
 export const logout = async () => {
     try {
+        console.log('🚪 Attempting logout');
+        
         await api.post('/auth/logout');
+        
+        // Clear local storage
         localStorage.removeItem('token');
-        console.log('Token removed from localStorage');
+        localStorage.removeItem('user');
+        
+        console.log('✅ Logout successful, token cleared');
+        
     } catch (error) {
-        console.error('Logout error:', error);
+        console.error('❌ Logout error:', error);
+        // Still clear local storage even if API call fails
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
         throw error;
     }
 };
 
-// services/auth.services.js
 export const getme = async () => {
     try {
-        console.log('=== getme service called ===');
+        console.log('👤 Fetching current user');
+        
         const token = localStorage.getItem('token');
-        console.log('Token in getme:', token ? 'exists' : 'missing');
         
-        const response = await api.get('/auth/get-me');
-        console.log('GetMe response status:', response.status);
-        console.log('GetMe response data:', response.data);
-        
-        // Handle different response formats
-        let userData;
-        if (response.data.user) {
-            userData = response.data.user;
-        } else if (response.data.id) {
-            userData = {
-                id: response.data.id,
-                username: response.data.username,
-                email: response.data.email
-            };
-        } else {
-            console.error('Unexpected response format:', response.data);
-            throw new Error('Invalid response format');
+        if (!token) {
+            console.warn('⚠️ No token found, skipping getme');
+            return { user: null };
         }
         
-        console.log('Extracted user data:', userData);
+        const response = await api.get('/auth/get-me');
+        
+        console.log('✅ GetMe response:', response.data);
+        
+        const userData = response.data.user || response.data;
+        
+        // Update stored user
+        localStorage.setItem('user', JSON.stringify(userData));
         
         return { user: userData };
+        
     } catch (error) {
-        console.error('GetMe error:', error);
-        console.error('Error response:', error.response?.data);
-        console.error('Error status:', error.response?.status);
+        console.error('❌ GetMe error:', error.response?.data || error.message);
+        
+        // If unauthorized, clear token
+        if (error.response?.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+        }
+        
         throw error;
+    }
+};
+
+// Helper function to check if user is authenticated
+export const isAuthenticated = () => {
+    const token = localStorage.getItem('token');
+    return !!token;
+};
+
+// Helper function to get current user from localStorage
+export const getCurrentUser = () => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    try {
+        return JSON.parse(userStr);
+    } catch {
+        return null;
     }
 };
