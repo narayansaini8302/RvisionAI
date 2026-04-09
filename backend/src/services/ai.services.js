@@ -173,10 +173,10 @@ async function generateInterviewReport({ resume, selfDescription, jobDescription
         try {
             console.log(`\n🚀 Attempting with ${modelConfig.displayName} (Priority: ${modelConfig.priority})`);
             
-            // 🔑 CRITICAL FIX 1: Add apiVersion: "v1"
-          const model = genAI.getGenerativeModel({ 
-    model: modelConfig.name 
-});
+            // ✅ REMOVED apiVersion - not needed for new models
+            const model = genAI.getGenerativeModel({ 
+                model: modelConfig.name 
+            });
 
             const prompt = buildInterviewPrompt({ resume, selfDescription, jobDescription });
             
@@ -383,17 +383,10 @@ async function generateResumeHtml({ resume, selfDescription, jobDescription }) {
         try {
             console.log(`🚀 Generating HTML with ${modelConfig.displayName}...`);
             
-            // 🔑 CRITICAL FIX 1: Add apiVersion: "v1"
-            const model = genAI.getGenerativeModel(
-                {
-                    model: modelConfig.name,
-                    generationConfig: {
-                        temperature: 0.4,
-                        maxOutputTokens: 8192,
-                    }
-                },
-                { apiVersion: "v1" }  // ← THIS FIXES THE 404 ERROR
-            );
+            // ✅ REMOVED apiVersion - not needed for new models
+            const model = genAI.getGenerativeModel({ 
+                model: modelConfig.name 
+            });
 
             const prompt = `Create a professional, ATS-friendly HTML resume. Return ONLY valid JSON: {"html": "full html content"}
 
@@ -411,15 +404,6 @@ async function generateResumeHtml({ resume, selfDescription, jobDescription }) {
 Resume: ${resume?.substring(0, 2000) || "Not provided"}
 Self Description: ${selfDescription?.substring(0, 500) || "Not provided"}
 Target Role: ${jobDescription?.substring(0, 500) || "Not provided"}
-
-**STYLE GUIDELINES:**
-- Max width: 800px, centered
-- Font sizes: h1 (24px), h2 (18px), body (12-14px)
-- Line height: 1.5 for readability
-- Margins: 20px around
-- No colors except black/gray
-- No tables for layout
-- Use flexbox or grid minimally
 
 Generate a COMPLETE, ready-to-use HTML document.`;
 
@@ -669,15 +653,15 @@ async function generatePdfFromHtml(html) {
         
         const page = await browser.newPage();
         
-        // 🔑 CRITICAL FIX 2: Use setViewport (not setViewportSize)
+        // Set viewport for consistent rendering
         await page.setViewport({
             width: 1200,
             height: 1600
         });
         
-        // Load HTML content
+        // ✅ FIXED: Use 'networkidle0' instead of 'networkidle'
         await page.setContent(html, {
-            waitUntil: 'networkidle',
+            waitUntil: 'networkidle0',  // ← CORRECT VALUE
             timeout: 30000
         });
         
